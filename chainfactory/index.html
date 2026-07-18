@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ChainFactory — an assembly line for inference</title>
+<meta name="description" content="ChainFactory: declarative multi-step LLM workflows in a YAML-like syntax. Sequential and parallel chains, purpose-driven prompts, Pydantic-typed outputs. A computer reinvention experiment.">
+<style>
+  :root {
+    --paper: #f2edda;
+    --ink: #16150f;
+    --yellow: #f5c518;
+    --red: #e03a1e;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+    --grot: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--grot);
+    line-height: 1.5;
+    background-image:
+      linear-gradient(rgba(22,21,15,0.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(22,21,15,0.045) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 20px; }
+
+  /* ---- breadcrumb ---- */
+  .crumb {
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 18px 0;
+    border-bottom: 2px solid var(--ink);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .crumb a { color: var(--ink); text-decoration: none; border-bottom: 2px solid var(--yellow); }
+  .crumb a:hover { background: var(--yellow); }
+  .crumb .tag {
+    background: var(--ink); color: var(--paper);
+    padding: 2px 8px; font-weight: 700; letter-spacing: 0.06em;
+  }
+
+  /* ---- hero ---- */
+  header.hero { padding: 56px 0 28px; }
+  .kicker {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    display: inline-block;
+    border: 2px solid var(--ink);
+    padding: 4px 10px;
+    background: var(--yellow);
+    box-shadow: 4px 4px 0 var(--ink);
+    margin-bottom: 22px;
+  }
+  h1 {
+    font-weight: 900;
+    font-size: clamp(44px, 9vw, 96px);
+    letter-spacing: -0.03em;
+    text-transform: uppercase;
+    line-height: 0.95;
+  }
+  h1 .accent { color: var(--red); }
+  .tagline {
+    font-weight: 800;
+    font-size: clamp(20px, 3.4vw, 32px);
+    letter-spacing: -0.01em;
+    text-transform: uppercase;
+    margin-top: 14px;
+  }
+  .tagline mark { background: var(--yellow); padding: 0 6px; }
+  .sub {
+    max-width: 620px;
+    margin-top: 16px;
+    font-size: 17px;
+    color: #3a382e;
+  }
+  .btns { display: flex; gap: 14px; margin-top: 28px; flex-wrap: wrap; }
+  .btn {
+    font-family: var(--mono);
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    text-decoration: none;
+    color: var(--ink);
+    background: var(--paper);
+    border: 2px solid var(--ink);
+    padding: 12px 22px;
+    box-shadow: 5px 5px 0 var(--ink);
+    transition: transform 0.08s ease, box-shadow 0.08s ease;
+    display: inline-block;
+  }
+  .btn.primary { background: var(--yellow); }
+  .btn:hover { transform: translate(2px, 2px); box-shadow: 3px 3px 0 var(--ink); }
+  .btn:active { transform: translate(5px, 5px); box-shadow: 0 0 0 var(--ink); }
+
+  /* ---- factory line canvas ---- */
+  .line-panel {
+    margin: 42px 0 0;
+    border: 2px solid var(--ink);
+    background: #f7f3e4;
+    box-shadow: 8px 8px 0 var(--ink);
+    position: relative;
+  }
+  .line-panel .panel-label {
+    position: absolute;
+    top: -2px; left: -2px;
+    background: var(--ink); color: var(--paper);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    z-index: 2;
+  }
+  #factory { display: block; width: 100%; height: 300px; }
+  @media (max-width: 560px) { #factory { height: 240px; } }
+
+  /* ---- sections ---- */
+  section { padding: 64px 0 0; }
+  h2 {
+    font-weight: 900;
+    font-size: clamp(26px, 4.5vw, 40px);
+    letter-spacing: -0.02em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  h2::before {
+    content: "";
+    display: inline-block;
+    width: 0.55em; height: 0.55em;
+    background: var(--red);
+    border: 2px solid var(--ink);
+    margin-right: 12px;
+  }
+  .section-note { font-family: var(--mono); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: #6a675a; margin-bottom: 24px; }
+
+  /* ---- code poster ---- */
+  .code-grid { display: grid; grid-template-columns: 1.15fr 1fr; gap: 28px; align-items: start; }
+  @media (max-width: 800px) { .code-grid { grid-template-columns: 1fr; } }
+  .codeblock {
+    border: 2px solid var(--ink);
+    background: var(--ink);
+    color: var(--paper);
+    box-shadow: 8px 8px 0 var(--yellow);
+    position: relative;
+  }
+  .codeblock .bar {
+    display: flex; justify-content: space-between; align-items: center;
+    font-family: var(--mono); font-size: 11px;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    background: var(--yellow); color: var(--ink);
+    border-bottom: 2px solid var(--ink);
+    padding: 6px 12px;
+  }
+  .codeblock pre {
+    font-family: var(--mono);
+    font-size: 14px;
+    line-height: 1.9;
+    padding: 20px 18px;
+    overflow-x: auto;
+  }
+  .tok-dir { color: var(--yellow); font-weight: 700; }
+  .tok-name { color: #f2edda; }
+  .tok-seq { color: #ff7a5c; font-weight: 700; }
+  .tok-par { color: #7ad7f0; font-weight: 700; }
+  .tok-comment { color: #8a877a; }
+  .code-copy p { margin-bottom: 14px; font-size: 16px; color: #3a382e; }
+  .code-copy code {
+    font-family: var(--mono); font-size: 0.9em;
+    background: rgba(22,21,15,0.08);
+    border: 1px solid rgba(22,21,15,0.25);
+    padding: 1px 5px;
+  }
+  .stamp {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--red);
+    border: 2px solid var(--red);
+    padding: 4px 10px;
+    transform: rotate(-2deg);
+    margin-top: 6px;
+  }
+
+  /* ---- feature grid ---- */
+  .features {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0;
+    border: 2px solid var(--ink);
+    box-shadow: 8px 8px 0 var(--ink);
+    background: var(--paper);
+  }
+  @media (max-width: 800px) { .features { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 520px) { .features { grid-template-columns: 1fr; } }
+  .feature {
+    border: 1px solid var(--ink);
+    padding: 22px 20px 26px;
+    background: #f7f3e4;
+  }
+  .feature:nth-child(odd) { background: var(--paper); }
+  .feature .num {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    color: var(--paper);
+    background: var(--ink);
+    display: inline-block;
+    padding: 2px 8px;
+    margin-bottom: 14px;
+  }
+  .feature:hover .num { background: var(--red); }
+  .feature h3 {
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: -0.01em;
+    font-size: 17px;
+    margin-bottom: 8px;
+  }
+  .feature p { font-size: 14.5px; color: #45432f; }
+  .feature code { font-family: var(--mono); font-size: 0.9em; background: rgba(245,197,24,0.35); padding: 0 4px; border: 1px solid rgba(22,21,15,0.25); }
+
+  /* ---- install strip ---- */
+  .install {
+    margin-top: 64px;
+    border: 2px solid var(--ink);
+    background: var(--yellow);
+    box-shadow: 8px 8px 0 var(--ink);
+    padding: 26px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  .install .cmd {
+    font-family: var(--mono);
+    font-weight: 700;
+    font-size: clamp(15px, 2.6vw, 20px);
+    background: var(--ink);
+    color: var(--paper);
+    padding: 10px 16px;
+  }
+  .install .cmd::before { content: "$ "; color: var(--yellow); }
+
+  /* ---- footer ---- */
+  footer {
+    margin-top: 72px;
+    border-top: 2px solid var(--ink);
+    padding: 24px 0 40px;
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    font-family: var(--mono);
+    font-size: 13px;
+  }
+  footer a { color: var(--ink); text-decoration: none; border-bottom: 2px solid var(--yellow); }
+  footer a:hover { background: var(--yellow); }
+  footer nav { display: flex; gap: 18px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <nav class="crumb" aria-label="breadcrumb">
+    <a href="../">computer reinvention</a>
+    <span>/</span>
+    <span class="tag">06</span>
+    <span>—</span>
+    <span>chainfactory</span>
+  </nav>
+
+  <header class="hero">
+    <span class="kicker">chainfactory-py · python library</span>
+    <h1>Chain<span class="accent">Factory</span></h1>
+    <p class="tagline">an <mark>assembly line</mark> for inference</p>
+    <p class="sub">Declarative multi-step LLM workflows in a YAML-like syntax. Connect prompts into chains — the output of one link feeds the input of the next, with smart mapping in between.</p>
+    <div class="btns">
+      <a class="btn primary" href="https://github.com/computer-reinvention/ChainFactory" target="_blank" rel="noopener">source ↗</a>
+      <a class="btn" href="../">back to index</a>
+    </div>
+    <div class="line-panel">
+      <span class="panel-label">fig. 01 — the line</span>
+      <canvas id="factory" aria-label="Animated factory line: work items flow from generator, fan out through parallel reviewer lanes, and converge into summarizer"></canvas>
+    </div>
+  </header>
+
+  <section id="syntax">
+    <h2>The Blueprint</h2>
+    <p class="section-note">split — map — reduce, declared in three lines</p>
+    <div class="code-grid">
+      <div class="codeblock">
+        <div class="bar"><span>pipeline.fctr</span><span>chainfactory</span></div>
+        <pre><code><span class="tok-dir">@chainlink</span> <span class="tok-name">generator</span> <span class="tok-seq">--</span>     <span class="tok-comment"># runs once</span>
+<span class="tok-dir">@chainlink</span> <span class="tok-name">reviewer</span> <span class="tok-par">||</span>      <span class="tok-comment"># fans out in parallel over the generator's list</span>
+<span class="tok-dir">@chainlink</span> <span class="tok-name">summarizer</span> <span class="tok-seq">--</span>    <span class="tok-comment"># reduces the parallel outputs</span></code></pre>
+      </div>
+      <div class="code-copy">
+        <p>Every <code>@chainlink</code> is one stop on the line. The <code>--</code> marker means sequential: the link runs once and passes its output downstream. The <code>||</code> marker means parallel: when the previous link emits an iterable, the link fans out automatically — one worker per item.</p>
+        <p>Here the <code>generator</code> produces a list, <code>reviewer</code> runs over every element concurrently, and <code>summarizer</code> collects the whole batch back into a single result. Split-map-reduce for LLM calls, with zero orchestration code.</p>
+        <span class="stamp">no glue code required</span>
+      </div>
+    </div>
+  </section>
+
+  <section id="features">
+    <h2>Standard Equipment</h2>
+    <p class="section-note">everything on the factory floor</p>
+    <div class="features">
+      <article class="feature">
+        <span class="num">01</span>
+        <h3>Purpose-Driven Prompts</h3>
+        <p>Write <code>purpose: generate creative haiku topics</code> and the system generates the optimal prompt for you. Less reliance on exact prompt wording, more on intent.</p>
+      </article>
+      <article class="feature">
+        <span class="num">02</span>
+        <h3>Pydantic-Typed Outputs</h3>
+        <p>Every link's output is validated against a Pydantic model. Type-safe structures move between stations — malformed parts never leave the machine.</p>
+      </article>
+      <article class="feature">
+        <span class="num">03</span>
+        <h3>Parallel Over Iterables</h3>
+        <p>Mark a link <code>||</code> and it fans out over any iterable from the previous link. Built for split-map-reduce workflows without manual batching.</p>
+      </article>
+      <article class="feature">
+        <span class="num">04</span>
+        <h3>Hash-Based Caching</h3>
+        <p>Intermediate generated prompts are cached by content hash. Re-running a chain reuses identical work instead of paying for it twice.</p>
+      </article>
+      <article class="feature">
+        <span class="num">05</span>
+        <h3>Chain Inheritance</h3>
+        <p>Chains extend other chains. Define a base pipeline once, then specialize it — reusability for workflows, not just functions.</p>
+      </article>
+      <article class="feature">
+        <span class="num">06</span>
+        <h3>Tool Calling</h3>
+        <p>Links can invoke tools mid-chain, so the assembly line reaches outside the model when the job needs real machinery.</p>
+      </article>
+    </div>
+
+    <div class="install">
+      <span class="cmd">pip install chainfactory-py</span>
+      <a class="btn" href="https://github.com/computer-reinvention/ChainFactory" target="_blank" rel="noopener">read the docs ↗</a>
+    </div>
+  </section>
+
+  <footer>
+    <span>© 2026 computer reinvention</span>
+    <nav>
+      <a href="../">index</a>
+      <a href="https://github.com/computer-reinvention/ChainFactory" target="_blank" rel="noopener">github ↗</a>
+    </nav>
+  </footer>
+
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var canvas = document.getElementById("factory");
+  var ctx = canvas.getContext("2d");
+  var W = 0, H = 0, dpr = 1;
+
+  var INK = "#16150f";
+  var PAPER = "#f7f3e4";
+  var YELLOW = "#f5c518";
+  var RED = "#e03a1e";
+  var MONO = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace';
+
+  var LANES = 3;          // parallel reviewer lanes
+  var layout = null;      // computed geometry
+  var CYCLE = 5200;       // ms per full loop
+  var startTime = null;
+
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    var rect = canvas.getBoundingClientRect();
+    W = rect.width;
+    H = rect.height;
+    canvas.width = Math.round(W * dpr);
+    canvas.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    computeLayout();
+  }
+
+  function computeLayout() {
+    var narrow = W < 640;
+    var boxW = narrow ? Math.min(96, W * 0.2) : 130;
+    var boxH = narrow ? 40 : 52;
+    var midY = H / 2;
+    var pad = narrow ? 14 : 40;
+
+    var genX = pad + boxW / 2;
+    var sumX = W - pad - boxW / 2;
+    var revX = W / 2;
+    var laneGap = Math.min((H - boxH - 40) / (LANES - 1), narrow ? 56 : 72);
+    var revBoxW = narrow ? boxW * 0.9 : boxW * 0.85;
+    var revBoxH = narrow ? 26 : 32;
+
+    var lanes = [];
+    for (var i = 0; i < LANES; i++) {
+      lanes.push(midY + (i - (LANES - 1) / 2) * laneGap);
+    }
+    layout = {
+      narrow: narrow,
+      midY: midY,
+      gen: { x: genX, y: midY, w: boxW, h: boxH, label: "GENERATOR" },
+      sum: { x: sumX, y: midY, w: boxW, h: boxH, label: "SUMMARIZER" },
+      revX: revX, revW: revBoxW, revH: revBoxH,
+      lanes: lanes
+    };
+  }
+
+  // Position of a dot at phase t in [0,1) for a given lane
+  // Timeline: enter->generator (0-0.16), inside gen (0.16-0.24),
+  // fan out to lane (0.24-0.42), through reviewer (0.42-0.56),
+  // converge (0.56-0.76), inside summarizer (0.76-0.84), exit (0.84-1)
+  function dotPos(t, lane) {
+    var L = layout;
+    var g = L.gen, s = L.sum;
+    var laneY = L.lanes[lane];
+    var revL = L.revX - L.revW / 2, revR = L.revX + L.revW / 2;
+    var gR = g.x + g.w / 2, gL = g.x - g.w / 2;
+    var sL = s.x - s.w / 2, sR = s.x + s.w / 2;
+    var p, x, y;
+
+    if (t < 0.16) {                    // approach generator (single lane)
+      p = t / 0.16;
+      return { x: lerp(0, gL, p), y: L.midY, single: true };
+    }
+    if (t < 0.24) {                    // inside generator
+      p = (t - 0.16) / 0.08;
+      return { x: lerp(gL, gR, p), y: L.midY, single: true, hidden: true };
+    }
+    if (t < 0.42) {                    // fan out to lane
+      p = ease((t - 0.24) / 0.18);
+      x = lerp(gR, revL, p);
+      y = lerp(L.midY, laneY, curve(p));
+      return { x: x, y: y };
+    }
+    if (t < 0.56) {                    // through reviewer box
+      p = (t - 0.42) / 0.14;
+      return { x: lerp(revL, revR, p), y: laneY, hidden: true };
+    }
+    if (t < 0.76) {                    // converge to summarizer
+      p = ease((t - 0.56) / 0.2);
+      x = lerp(revR, sL, p);
+      y = lerp(laneY, L.midY, curve(p));
+      return { x: x, y: y };
+    }
+    if (t < 0.84) {                    // inside summarizer
+      p = (t - 0.76) / 0.08;
+      return { x: lerp(sL, sR, p), y: L.midY, single: true, hidden: true };
+    }
+    p = (t - 0.84) / 0.16;             // exit as one
+    return { x: lerp(sR, W, p), y: L.midY, single: true };
+  }
+
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  function ease(t) { return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; }
+  function curve(t) { return t * t * (3 - 2 * t); }
+
+  function drawBox(b, fill, labelBelow) {
+    ctx.fillStyle = fill;
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = 2;
+    var x = b.x - b.w / 2, y = b.y - b.h / 2;
+    // hard offset shadow
+    ctx.fillStyle = INK;
+    ctx.fillRect(x + 4, y + 4, b.w, b.h);
+    ctx.fillStyle = fill;
+    ctx.fillRect(x, y, b.w, b.h);
+    ctx.strokeRect(x, y, b.w, b.h);
+    ctx.fillStyle = INK;
+    ctx.font = "700 " + (layout.narrow ? 9 : 11) + "px " + MONO;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(b.label, b.x, labelBelow ? y + b.h + 14 : b.y);
+  }
+
+  function drawConveyor(x1, y1, x2, y2) {
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 5]);
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  function drawFanPath(fromX, fromY, toX, toY) {
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 5]);
+    ctx.beginPath();
+    ctx.moveTo(fromX, fromY);
+    var midX = (fromX + toX) / 2;
+    ctx.bezierCurveTo(midX, fromY, midX, toY, toX, toY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  function drawMarker(text, x, y, color) {
+    ctx.font = "700 " + (layout.narrow ? 11 : 13) + "px " + MONO;
+    var w = ctx.measureText(text).width + 12;
+    var h = 20;
+    ctx.fillStyle = color;
+    ctx.fillRect(x - w / 2, y - h / 2, w, h);
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x - w / 2, y - h / 2, w, h);
+    ctx.fillStyle = INK;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(text, x, y + 1);
+  }
+
+  function frame(now) {
+    if (startTime === null) startTime = now;
+    var t = ((now - startTime) % CYCLE) / CYCLE;
+    var L = layout;
+    ctx.clearRect(0, 0, W, H);
+
+    var g = L.gen, s = L.sum;
+    var revL = L.revX - L.revW / 2, revR = L.revX + L.revW / 2;
+
+    // static conveyors
+    drawConveyor(0, L.midY, g.x - g.w / 2, L.midY);
+    drawConveyor(s.x + s.w / 2, L.midY, W, L.midY);
+    for (var i = 0; i < LANES; i++) {
+      drawFanPath(g.x + g.w / 2, L.midY, revL, L.lanes[i]);
+      drawFanPath(revR, L.lanes[i], s.x - s.w / 2, L.midY);
+      drawConveyor(revL, L.lanes[i], revR, L.lanes[i]);
+    }
+
+    // dots (draw under boxes so they "enter" them)
+    for (i = 0; i < LANES; i++) {
+      var pos = dotPos(t, i);
+      if (pos.hidden) continue;
+      if (pos.single && i > 0) continue; // single-file phases: draw once
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, layout.narrow ? 5 : 6, 0, Math.PI * 2);
+      ctx.fillStyle = pos.single ? RED : YELLOW;
+      ctx.fill();
+      ctx.strokeStyle = INK;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
+    // boxes
+    drawBox(g, YELLOW, false);
+    drawBox(s, YELLOW, false);
+    for (i = 0; i < LANES; i++) {
+      drawBox({ x: L.revX, y: L.lanes[i], w: L.revW, h: L.revH, label: "REVIEWER " + (i + 1) }, PAPER, false);
+    }
+
+    // lane markers: -- sequential, || parallel
+    var markY = layout.narrow ? 16 : 20;
+    drawMarker("--", g.x, markY, PAPER);
+    drawMarker("||", L.revX, markY, YELLOW);
+    drawMarker("--", s.x, markY, PAPER);
+
+    requestAnimationFrame(frame);
+  }
+
+  var resizeTimer = null;
+  window.addEventListener("resize", function () {
+    if (resizeTimer) clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(resize, 100);
+  });
+
+  resize();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

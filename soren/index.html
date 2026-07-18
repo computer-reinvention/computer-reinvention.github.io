@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>soren — a self-improving swarm · computer reinvention</title>
+<meta name="description" content="soren is a self-improving swarm of autonomous AI agents that coordinate through message passing to build, test, and improve software — including their own codebase.">
+<style>
+  :root {
+    --abyss: #030a09;
+    --deep: #071412;
+    --card: #0a1b18;
+    --card-edge: #123830;
+    --glow: #3ef2c3;
+    --glow-dim: #22a488;
+    --glow-faint: rgba(62, 242, 195, 0.12);
+    --ink: #d9f2ea;
+    --ink-dim: #8ab5a9;
+    --ink-faint: #5a7f75;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--abyss);
+    color: var(--ink);
+    font-family: var(--sans);
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  a { color: var(--glow); text-decoration: none; transition: opacity 0.2s; }
+  a:hover { opacity: 0.75; }
+  .wrap { max-width: 1060px; margin: 0 auto; padding: 0 24px; }
+
+  /* breadcrumb */
+  .crumb {
+    padding: 28px 0 0;
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    color: var(--ink-faint);
+    position: relative;
+    z-index: 3;
+  }
+  .crumb a { color: var(--ink-dim); }
+  .crumb a:hover { color: var(--glow); opacity: 1; }
+
+  /* hero */
+  .hero {
+    position: relative;
+    padding: 72px 0 96px;
+    min-height: 540px;
+  }
+  #swarm {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+    pointer-events: none;
+  }
+  .hero-inner { position: relative; z-index: 2; max-width: 620px; }
+  .hero h1 {
+    font-size: clamp(56px, 10vw, 96px);
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1;
+    color: var(--ink);
+    text-shadow: 0 0 40px rgba(62, 242, 195, 0.35);
+  }
+  .tagline {
+    margin-top: 14px;
+    font-size: clamp(20px, 3.4vw, 27px);
+    font-weight: 500;
+    color: var(--glow);
+    letter-spacing: -0.01em;
+  }
+  .hero p.sub {
+    margin-top: 22px;
+    font-size: 17px;
+    color: var(--ink-dim);
+    max-width: 54ch;
+  }
+  .btns { margin-top: 36px; display: flex; gap: 14px; flex-wrap: wrap; }
+  .btn {
+    display: inline-block;
+    padding: 12px 26px;
+    border-radius: 999px;
+    font-size: 15px;
+    font-weight: 600;
+    transition: box-shadow 0.25s, transform 0.15s, background 0.25s;
+  }
+  .btn-glow {
+    background: var(--glow);
+    color: var(--abyss);
+    box-shadow: 0 0 24px rgba(62, 242, 195, 0.35);
+  }
+  .btn-glow:hover { opacity: 1; box-shadow: 0 0 42px rgba(62, 242, 195, 0.6); transform: translateY(-1px); }
+  .btn-ghost {
+    color: var(--ink-dim);
+    border: 1px solid var(--card-edge);
+    background: rgba(10, 27, 24, 0.5);
+  }
+  .btn-ghost:hover { opacity: 1; color: var(--glow); border-color: var(--glow-dim); }
+
+  /* sections */
+  section { padding: 84px 0; position: relative; z-index: 2; }
+  .kicker {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--glow-dim);
+    margin-bottom: 12px;
+  }
+  h2 {
+    font-size: clamp(28px, 5vw, 40px);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: 18px;
+  }
+  .lede { color: var(--ink-dim); max-width: 62ch; font-size: 16.5px; }
+
+  .grid {
+    margin-top: 44px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 18px;
+  }
+  .card {
+    background: linear-gradient(160deg, var(--card) 0%, var(--deep) 100%);
+    border: 1px solid var(--card-edge);
+    border-radius: 22px;
+    padding: 28px 26px;
+    transition: border-color 0.3s, box-shadow 0.3s, transform 0.2s;
+  }
+  .card:hover {
+    border-color: var(--glow-dim);
+    box-shadow: 0 0 32px rgba(62, 242, 195, 0.09), inset 0 0 24px rgba(62, 242, 195, 0.03);
+    transform: translateY(-2px);
+  }
+  .card .dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--glow);
+    box-shadow: 0 0 12px var(--glow), 0 0 28px rgba(62, 242, 195, 0.4);
+    margin-bottom: 18px;
+  }
+  .card h3 { font-size: 18px; font-weight: 650; margin-bottom: 8px; letter-spacing: -0.01em; }
+  .card h3 span {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--ink-faint);
+    letter-spacing: 0.08em;
+    display: block;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+  }
+  .card p { font-size: 14.5px; color: var(--ink-dim); }
+
+  /* two-column memory / self-improve */
+  .duo { margin-top: 44px; display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  @media (max-width: 760px) { .duo { grid-template-columns: 1fr; } }
+  .panel {
+    background: linear-gradient(180deg, var(--card) 0%, var(--deep) 100%);
+    border: 1px solid var(--card-edge);
+    border-radius: 26px;
+    padding: 34px 30px;
+  }
+  .panel h3 { font-size: 22px; font-weight: 650; margin-bottom: 12px; letter-spacing: -0.01em; }
+  .panel p { font-size: 15px; color: var(--ink-dim); margin-bottom: 12px; }
+  .panel ul { list-style: none; margin-top: 16px; }
+  .panel li {
+    font-size: 14.5px;
+    color: var(--ink-dim);
+    padding: 9px 0 9px 24px;
+    position: relative;
+    border-top: 1px solid rgba(18, 56, 48, 0.6);
+  }
+  .panel li::before {
+    content: "";
+    position: absolute;
+    left: 4px; top: 17px;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--glow-dim);
+    box-shadow: 0 0 8px rgba(62, 242, 195, 0.5);
+  }
+  .panel li strong { color: var(--ink); font-weight: 600; }
+
+  /* teams strip */
+  .teams { margin-top: 26px; display: flex; flex-wrap: wrap; gap: 10px; }
+  .chip {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.05em;
+    color: var(--glow);
+    background: var(--glow-faint);
+    border: 1px solid rgba(62, 242, 195, 0.25);
+    border-radius: 999px;
+    padding: 7px 16px;
+  }
+
+  /* template note */
+  .note {
+    margin-top: 84px;
+    text-align: center;
+    padding: 52px 32px;
+    border-radius: 30px;
+    border: 1px solid var(--card-edge);
+    background:
+      radial-gradient(ellipse 70% 120% at 50% 0%, rgba(62, 242, 195, 0.07), transparent 70%),
+      var(--deep);
+  }
+  .note h3 { font-size: 24px; font-weight: 650; letter-spacing: -0.01em; margin-bottom: 12px; }
+  .note p { color: var(--ink-dim); max-width: 56ch; margin: 0 auto; font-size: 15.5px; }
+  .note p strong { color: var(--glow); font-weight: 600; }
+
+  /* footer */
+  footer {
+    margin-top: 40px;
+    border-top: 1px solid var(--card-edge);
+    padding: 36px 0 48px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+    font-size: 13.5px;
+    color: var(--ink-faint);
+  }
+  footer nav { display: flex; gap: 22px; }
+  footer a { color: var(--ink-dim); }
+  footer a:hover { color: var(--glow); opacity: 1; }
+
+  @media (max-width: 480px) {
+    .hero { padding: 48px 0 72px; min-height: 480px; }
+    section { padding: 60px 0; }
+    .panel { padding: 26px 22px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap crumb">
+  <a href="../">computer reinvention</a> <span>/ 04 — soren</span>
+</div>
+
+<header class="hero">
+  <canvas id="swarm" aria-hidden="true"></canvas>
+  <div class="wrap hero-inner">
+    <h1>soren</h1>
+    <div class="tagline">a self-improving swarm</div>
+    <p class="sub">
+      Not one agent with tools — a living colony. A supervisor delegates to specialized
+      workers, workers message each other, reviewers audit the code, testers verify results.
+      The swarm builds, tests, and improves software — including its own codebase.
+    </p>
+    <div class="btns">
+      <a class="btn btn-glow" href="https://github.com/computer-reinvention/soren" target="_blank" rel="noopener">source&nbsp;↗</a>
+      <a class="btn btn-ghost" href="../">back to index</a>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="wrap" id="anatomy">
+    <div class="kicker">structure</div>
+    <h2>anatomy of the swarm</h2>
+    <p class="lede">
+      Every agent is a real CLI process in its own tmux window, coordinated through a shared
+      file-based mailbox. Orchestration is agent-agnostic — Claude&nbsp;Code by default, but the
+      harness could just as well drive Codex&nbsp;CLI or Gemini&nbsp;CLI.
+    </p>
+    <div class="grid">
+      <div class="card">
+        <div class="dot"></div>
+        <h3><span>node · 01</span>supervisor</h3>
+        <p>Sits at the center of the colony. Decomposes goals into tasks, delegates to the right specialists, and integrates their results back into one coherent effort.</p>
+      </div>
+      <div class="card">
+        <div class="dot"></div>
+        <h3><span>node · 02</span>workers</h3>
+        <p>Clone workers spin up in isolated git worktrees for conflict-free parallelism. Permanent workers persist across sessions, accumulating long-lived domain expertise.</p>
+      </div>
+      <div class="card">
+        <div class="dot"></div>
+        <h3><span>node · 03</span>reviewers</h3>
+        <p>Independent auditors that read every change with fresh eyes — flagging design drift, risky diffs, and shortcuts before they merge into the trunk.</p>
+      </div>
+      <div class="card">
+        <div class="dot"></div>
+        <h3><span>node · 04</span>testers</h3>
+        <p>Verification agents that run the suite, reproduce failures, and confirm claims. Nothing counts as done until a tester says it actually works.</p>
+      </div>
+      <div class="card">
+        <div class="dot"></div>
+        <h3><span>substrate · 05</span>mailbox + router</h3>
+        <p>A shared file-based mailbox and a router daemon carry every message between agents — simple, inspectable coordination with no hidden channels.</p>
+      </div>
+      <div class="card">
+        <div class="dot"></div>
+        <h3><span>substrate · 06</span>health monitor</h3>
+        <p>Watches every process. When an agent wedges or a change breaks the swarm, it auto-restarts and rolls back via git — the colony heals itself.</p>
+      </div>
+    </div>
+    <div class="teams">
+      <span class="chip">team: squad</span>
+      <span class="chip">team: feature team</span>
+      <span class="chip">team: tiger team</span>
+      <span class="chip">team: debate pair</span>
+      <span class="chip">budget guard: daily cost cap · per-agent tracking</span>
+    </div>
+  </section>
+
+  <section class="wrap" id="memory">
+    <div class="kicker">continuity</div>
+    <h2>it remembers. it improves itself.</h2>
+    <p class="lede">
+      Most agent runs are amnesiac — everything learned evaporates when the process exits.
+      soren keeps a persistent, private memory, and points its own swarm back at its own code.
+    </p>
+    <div class="duo">
+      <div class="panel">
+        <h3>it remembers</h3>
+        <p>Memory persists across sessions, so day two starts smarter than day one.</p>
+        <ul>
+          <li><strong>Daily journal</strong> — a running narrative of what the swarm did, decided, and learned.</li>
+          <li><strong>Hierarchical tasks</strong> — a SQLite-backed task tree tracks goals, subtasks, and status.</li>
+          <li><strong>Artifact storage</strong> — designs, reports, and outputs are preserved and referenced later.</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h3>it improves itself</h3>
+        <p>The swarm's most interesting target is its own codebase.</p>
+        <ul>
+          <li><strong>Self-directed work</strong> — agents file, prioritize, and implement improvements to soren itself.</li>
+          <li><strong>Reviewed &amp; verified</strong> — self-modifications pass the same reviewer and tester gauntlet as any change.</li>
+          <li><strong>Safe by rollback</strong> — if an upgrade destabilizes the colony, the health monitor reverts it via git.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="note">
+      <h3>a public template, a private mind</h3>
+      <p>
+        soren ships as a public template: <strong>the code is public</strong>, and anyone can fork
+        the colony. But <strong>your swarm's memories stay local and private</strong> — journals,
+        tasks, and artifacts never leave your machine.
+      </p>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap">
+  <div>© 2026 computer reinvention</div>
+  <nav>
+    <a href="../">index</a>
+    <a href="https://github.com/computer-reinvention/soren" target="_blank" rel="noopener">github ↗</a>
+  </nav>
+</footer>
+
+<script>
+(function () {
+  "use strict";
+  var canvas = document.getElementById("swarm");
+  var ctx = canvas.getContext("2d");
+  var W = 0, H = 0, dpr = 1;
+  var GLOW = "62, 242, 195";
+  var LABELS = ["worker", "reviewer", "tester", "worker", "clone"];
+  var nodes = [];
+  var messages = [];
+  var nextMsgAt = 1.2;
+  var t = 0;
+  var lastFrame = performance.now();
+
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    var rect = canvas.parentElement.getBoundingClientRect();
+    W = rect.width;
+    H = rect.height;
+    canvas.width = Math.round(W * dpr);
+    canvas.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function rand(a, b) { return a + Math.random() * (b - a); }
+
+  function makeNodes() {
+    nodes = [];
+    // supervisor near center (biased right on wide screens so text stays clear)
+    var cx = W > 720 ? W * 0.68 : W * 0.5;
+    var cy = H * 0.45;
+    nodes.push({
+      hx: cx, hy: cy, x: cx, y: cy,
+      r: 7, supervisor: true, flare: 0,
+      p1: rand(0, 6.28), p2: rand(0, 6.28), p3: rand(0, 6.28),
+      s1: rand(0.15, 0.3), s2: rand(0.1, 0.25),
+      amp: 10, label: null, twk: rand(0.5, 1.5)
+    });
+    var count = 40;
+    for (var i = 0; i < count; i++) {
+      var ang = rand(0, Math.PI * 2);
+      var dist = rand(60, Math.min(W, H) * 0.52);
+      nodes.push({
+        hx: cx + Math.cos(ang) * dist * (W > 720 ? 1.25 : 1),
+        hy: cy + Math.sin(ang) * dist * 0.85,
+        x: 0, y: 0,
+        r: rand(1.4, 3.2), supervisor: false, flare: 0,
+        p1: rand(0, 6.28), p2: rand(0, 6.28), p3: rand(0, 6.28),
+        s1: rand(0.2, 0.55), s2: rand(0.15, 0.45),
+        amp: rand(18, 46),
+        label: (i < LABELS.length && Math.random() < 0.9) ? LABELS[i] : null,
+        labelPhase: rand(0, 20),
+        twk: rand(0.5, 2)
+      });
+    }
+  }
+
+  function updateNode(n) {
+    // gentle organic wander: layered sines (noise-like, cheap)
+    n.x = n.hx + Math.sin(t * n.s1 + n.p1) * n.amp + Math.sin(t * n.s2 * 1.7 + n.p2) * n.amp * 0.45;
+    n.y = n.hy + Math.cos(t * n.s2 + n.p2) * n.amp * 0.8 + Math.cos(t * n.s1 * 1.3 + n.p3) * n.amp * 0.4;
+    if (n.flare > 0) n.flare = Math.max(0, n.flare - 0.02);
+  }
+
+  function spawnMessage() {
+    var from, to;
+    if (Math.random() < 0.6) {
+      from = nodes[0]; // supervisor
+      to = nodes[1 + Math.floor(Math.random() * (nodes.length - 1))];
+    } else {
+      from = nodes[1 + Math.floor(Math.random() * (nodes.length - 1))];
+      do {
+        to = nodes[1 + Math.floor(Math.random() * (nodes.length - 1))];
+      } while (to === from);
+    }
+    messages.push({ from: from, to: to, prog: 0, speed: rand(0.9, 1.5) });
+  }
+
+  function drawNode(n) {
+    var tw = 0.65 + 0.35 * Math.sin(t * n.twk + n.p1); // twinkle
+    var a = (n.supervisor ? 0.95 : 0.35 + 0.4 * tw) + n.flare;
+    var r = n.r * (1 + n.flare * 1.6);
+    // halo
+    var haloR = r * (n.supervisor ? 7 : 5) * (1 + n.flare);
+    var g = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, haloR);
+    g.addColorStop(0, "rgba(" + GLOW + "," + Math.min(1, a * 0.35) + ")");
+    g.addColorStop(1, "rgba(" + GLOW + ",0)");
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, haloR, 0, Math.PI * 2);
+    ctx.fill();
+    // core
+    ctx.fillStyle = "rgba(" + (n.supervisor ? "220, 255, 244" : GLOW) + "," + Math.min(1, a) + ")";
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+    ctx.fill();
+    // occasional tiny mono label, fading in/out on a slow cycle
+    if (n.label) {
+      var cyc = (t * 0.14 + n.labelPhase) % 12; // visible ~3s of every ~12s
+      if (cyc < 3.5) {
+        var la = Math.sin((cyc / 3.5) * Math.PI) * 0.55;
+        ctx.font = "10px ui-monospace, SFMono-Regular, Menlo, monospace";
+        ctx.fillStyle = "rgba(138, 181, 169," + la + ")";
+        ctx.fillText(n.label, n.x + 8, n.y - 8);
+      }
+    }
+    if (n.supervisor) {
+      ctx.font = "10px ui-monospace, SFMono-Regular, Menlo, monospace";
+      ctx.fillStyle = "rgba(138, 181, 169, 0.5)";
+      ctx.fillText("supervisor", n.x + 11, n.y + 3);
+    }
+  }
+
+  function drawMessage(m) {
+    var fx = m.from.x, fy = m.from.y, tx = m.to.x, ty = m.to.y;
+    var fade = Math.sin(Math.min(1, m.prog) * Math.PI); // line fades in/out with travel
+    // briefly-drawn connecting line
+    ctx.strokeStyle = "rgba(" + GLOW + "," + (0.16 * fade) + ")";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(fx, fy);
+    ctx.lineTo(tx, ty);
+    ctx.stroke();
+    // travelling pulse
+    var p = Math.min(1, m.prog);
+    var px = fx + (tx - fx) * p;
+    var py = fy + (ty - fy) * p;
+    var g = ctx.createRadialGradient(px, py, 0, px, py, 12);
+    g.addColorStop(0, "rgba(220, 255, 244," + (0.9 * fade + 0.1) + ")");
+    g.addColorStop(0.4, "rgba(" + GLOW + "," + 0.5 * fade + ")");
+    g.addColorStop(1, "rgba(" + GLOW + ",0)");
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(px, py, 12, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function frame(now) {
+    var dt = Math.min(0.05, (now - lastFrame) / 1000);
+    lastFrame = now;
+    t += dt;
+    ctx.clearRect(0, 0, W, H);
+
+    for (var i = 0; i < nodes.length; i++) updateNode(nodes[i]);
+
+    // messages
+    nextMsgAt -= dt;
+    if (nextMsgAt <= 0) {
+      spawnMessage();
+      nextMsgAt = rand(0.7, 2.2);
+    }
+    for (var j = messages.length - 1; j >= 0; j--) {
+      var m = messages[j];
+      m.prog += dt * m.speed * 0.9;
+      drawMessage(m);
+      if (m.prog >= 1) {
+        m.to.flare = 1; // receiving node flares, then fades
+        messages.splice(j, 1);
+      }
+    }
+
+    for (var k = nodes.length - 1; k >= 0; k--) drawNode(nodes[k]);
+
+    requestAnimationFrame(frame);
+  }
+
+  var resizeTimer = null;
+  window.addEventListener("resize", function () {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function () {
+      resize();
+      makeNodes();
+    }, 120);
+  });
+
+  resize();
+  makeNodes();
+  requestAnimationFrame(frame);
+})();
+</script>
+
+</body>
+</html>

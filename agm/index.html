@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AGM — the Attention Gravity Map</title>
+  <meta name="description" content="AGM is a macOS editor built around a live attention map of your codebase: watch, turn by turn, where your coding agent is thinking." />
+  <style>
+    /* ── AGM: instrument-panel / observatory ─────────────────────────
+       Near-black indigo field, cyan + amber phosphor glow, thin sans
+       for prose, mono for instrument labels. The page itself behaves
+       like the map: quiet until something demands attention. */
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+
+    :root {
+      --void:    #05060e;
+      --panel:   #0a0d1c;
+      --ink:     #d7e2f4;
+      --mute:    #5f6c8a;
+      --cyan:    #63e6ff;
+      --amber:   #ffb454;
+      --hot:     #ff6b4a;
+      --line:    rgba(99, 230, 255, .14);
+      --mono:    'SF Mono', ui-monospace, Menlo, 'Cascadia Code', monospace;
+      --sans:    -apple-system, 'Helvetica Neue', 'Segoe UI', sans-serif;
+    }
+
+    body {
+      background:
+        radial-gradient(1100px 500px at 70% -10%, rgba(99,230,255,.06), transparent 60%),
+        var(--void);
+      color: var(--ink);
+      font-family: var(--sans);
+      font-weight: 300;
+      line-height: 1.65;
+      -webkit-font-smoothing: antialiased;
+    }
+    ::selection { background: var(--cyan); color: var(--void); }
+    a { color: inherit; }
+
+    .wrap { max-width: 920px; margin: 0 auto; padding: 0 24px; }
+
+    .crumb {
+      padding-top: 26px;
+      font-family: var(--mono); font-size: 11px;
+      letter-spacing: .16em; text-transform: uppercase; color: var(--mute);
+    }
+    .crumb a { text-decoration: none; }
+    .crumb a:hover { color: var(--cyan); }
+
+    .hero { padding: 64px 0 0; }
+    .hero h1 {
+      font-size: clamp(40px, 8vw, 76px);
+      font-weight: 200;
+      letter-spacing: .04em;
+      margin: 12px 0 6px;
+    }
+    .hero h1 b { font-weight: 600; color: var(--cyan); }
+    .hero .sub {
+      font-size: 17px; color: var(--mute); max-width: 56ch; margin: 8px 0 0;
+    }
+    .hero .sub em { color: var(--ink); font-style: normal; }
+
+    .links { margin-top: 28px; display: flex; gap: 12px; flex-wrap: wrap; }
+    .btn {
+      font-family: var(--mono); font-size: 12.5px; letter-spacing: .04em;
+      text-decoration: none; padding: 11px 20px; border-radius: 999px;
+      border: 1px solid var(--line); color: var(--ink);
+      transition: all .18s ease;
+    }
+    .btn:hover { border-color: var(--cyan); color: var(--cyan); box-shadow: 0 0 24px -6px rgba(99,230,255,.5); }
+    .btn.solid { background: var(--cyan); border-color: var(--cyan); color: var(--void); font-weight: 600; }
+    .btn.solid:hover { box-shadow: 0 0 34px -4px rgba(99,230,255,.7); color: var(--void); }
+
+    /* ── the instrument ── */
+    .scope {
+      position: relative; margin-top: 48px;
+      border: 1px solid var(--line); border-radius: 14px;
+      background: radial-gradient(600px 340px at 50% 45%, rgba(99,230,255,.05), transparent 70%), var(--panel);
+      overflow: hidden;
+      box-shadow: 0 40px 80px -30px rgba(0,0,0,.8), inset 0 0 60px rgba(5,6,14,.8);
+    }
+    .scope canvas { display: block; width: 100%; height: 460px; }
+    .readout {
+      position: absolute; top: 12px; left: 16px;
+      font-family: var(--mono); font-size: 10.5px; letter-spacing: .12em;
+      text-transform: uppercase; color: var(--mute); pointer-events: none;
+    }
+    .readout .live { color: var(--hot); animation: pulse 1.6s ease-in-out infinite; }
+    @keyframes pulse { 50% { opacity: .35; } }
+    .readout-r {
+      position: absolute; top: 12px; right: 16px; text-align: right;
+      font-family: var(--mono); font-size: 10.5px; letter-spacing: .12em;
+      text-transform: uppercase; color: var(--mute); pointer-events: none;
+    }
+    .readout-r b { color: var(--amber); font-weight: 400; }
+
+    /* ── sections ── */
+    section { margin-top: 96px; }
+    section h2 {
+      font-family: var(--mono); font-size: 12px; font-weight: 400;
+      letter-spacing: .18em; text-transform: uppercase; color: var(--cyan);
+      margin: 0 0 20px;
+    }
+    section p { max-width: 64ch; font-size: 16px; }
+    section p.dim { color: var(--mute); }
+
+    .dials { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; margin-top: 28px; }
+    .dial {
+      border: 1px solid var(--line); border-radius: 12px; padding: 22px 24px;
+      background: linear-gradient(180deg, rgba(99,230,255,.04), transparent 55%);
+    }
+    .dial h3 { margin: 0 0 8px; font-weight: 500; font-size: 15px; letter-spacing: .02em; }
+    .dial h3::before { content: '◉ '; color: var(--amber); font-size: 11px; vertical-align: 2px; }
+    .dial p { margin: 0; font-size: 14px; color: var(--mute); }
+
+    .footnote {
+      margin-top: 110px; padding: 26px 0 48px;
+      border-top: 1px solid var(--line);
+      font-family: var(--mono); font-size: 11.5px; color: var(--mute);
+      display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px;
+    }
+    .footnote a { color: var(--mute); } .footnote a:hover { color: var(--cyan); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+
+    <nav class="crumb"><a href="../">computer reinvention</a> / 02 — agm</nav>
+
+    <header class="hero">
+      <h1>the <b>Attention</b> Gravity Map</h1>
+      <p class="sub">
+        A macOS editor with an embedded coding agent — built around a live map of
+        <em>where the agent is thinking</em>. Every read, grep, trace, and edit
+        deposits decaying attention mass on the symbols it touches. The map glows
+        around the agent's focus and fades as attention moves on.
+      </p>
+      <div class="links">
+        <a class="btn solid" href="https://github.com/computer-reinvention/trie-app">source ↗</a>
+        <a class="btn" href="../trie/">built on trie →</a>
+      </div>
+    </header>
+
+    <div class="scope">
+      <span class="readout"><span class="live">●</span> live &nbsp;·&nbsp; simulated session</span>
+      <span class="readout-r">investigation: <b id="inv">auth-refactor</b><br/>decay: exponential</span>
+      <canvas id="map"></canvas>
+    </div>
+
+    <section>
+      <h2>not a call graph</h2>
+      <p>
+        A call graph shows what the code <em>is</em>. The attention map shows what
+        the agent is <em>doing with it</em> — a turn-by-turn picture of machine
+        focus. Symbols keep a fixed angular geography (their place in the system's
+        topology), while the live field resets with every prompt: each question
+        you ask opens a fresh investigation, and you watch it unfold.
+      </p>
+      <div class="dials">
+        <div class="dial">
+          <h3>attention mass</h3>
+          <p>Each tool call deposits mass on the symbols it touches. Mass glows,
+          spreads to neighbors, and decays — focus is visible, and so is
+          forgetting.</p>
+        </div>
+        <div class="dial">
+          <h3>fixed geography</h3>
+          <p>Symbols cluster by role — config, storage, sync, parse — in stable
+          polar regions. You learn the map of your system the way you learn a
+          city.</p>
+        </div>
+        <div class="dial">
+          <h3>patch review</h3>
+          <p>The agent's staged, symbol-level edits land in a review surface as
+          prose. You read what a change <em>means</em>, not a raw diff.</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>how it hangs together</h2>
+      <p class="dim">
+        AGM consumes <a href="../trie/">trie</a> as an installed dependency — the
+        prose graph, the reference cascade, and the MCP tools all come from the
+        open-source core. The embedded agent runs on a fork of opencode where
+        trie's tools are the default toolset, and the map listens to the agent's
+        event stream in real time.
+      </p>
+      <p class="dim">
+        Status: experimental, macOS, moving fast. The stable product is the
+        <a href="https://github.com/computer-reinvention/trie">trie core</a> (MIT).
+      </p>
+    </section>
+
+    <footer class="footnote">
+      <span>© 2026 computer reinvention</span>
+      <span><a href="../">index</a> · <a href="https://github.com/computer-reinvention/trie-app">github ↗</a></span>
+    </footer>
+
+  </div>
+
+  <script>
+  // ── attention map simulation ──────────────────────────────────────
+  // Symbols sit in fixed polar clusters (their "role regions"). A
+  // simulated agent walks the graph: it picks a focus, deposits mass on
+  // it and its neighborhood, and mass decays every frame. Recent path
+  // is drawn as a fading trace — the same grammar as the real AGM.
+  (function () {
+    const canvas = document.getElementById('map');
+    const ctx = canvas.getContext('2d');
+    const DPR = Math.min(window.devicePixelRatio || 1, 2);
+
+    const ROLES = ['config', 'storage', 'sync', 'parse', 'graph', 'edits', 'cli'];
+    const investigations = ['auth-refactor', 'cascade-depth', 'stale-fingerprints', 'mcp-timeout', 'rename-detection'];
+    let nodes = [], trail = [], focus = null, invEl = document.getElementById('inv');
+
+    function layout() {
+      const w = canvas.clientWidth, h = 460;
+      canvas.width = w * DPR; canvas.height = h * DPR;
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+      const cx = w / 2, cy = h / 2 + 10;
+      nodes = [];
+      ROLES.forEach((role, ri) => {
+        const baseAngle = (ri / ROLES.length) * Math.PI * 2 - Math.PI / 2;
+        const count = 7 + (ri * 3) % 6;
+        for (let i = 0; i < count; i++) {
+          const a = baseAngle + (Math.random() - .5) * (Math.PI * 2 / ROLES.length) * .72;
+          const r = 70 + Math.random() * Math.min(cx, cy) * .62;
+          nodes.push({
+            x: cx + Math.cos(a) * r,
+            y: cy + Math.sin(a) * r * .82,
+            role, mass: 0,
+          });
+        }
+      });
+      trail = []; focus = null;
+    }
+
+    function step() {
+      // pick next focus: 70% near current focus, else jump (new thread of thought)
+      let next;
+      if (focus && Math.random() < .7) {
+        const near = nodes
+          .map(n => ({ n, d: Math.hypot(n.x - focus.x, n.y - focus.y) }))
+          .sort((a, b) => a.d - b.d).slice(1, 7);
+        next = near[Math.floor(Math.random() * near.length)].n;
+      } else {
+        next = nodes[Math.floor(Math.random() * nodes.length)];
+      }
+      next.mass = Math.min(next.mass + 1, 1.6);
+      // spillover to neighbors — attention is never a point
+      nodes.forEach(n => {
+        const d = Math.hypot(n.x - next.x, n.y - next.y);
+        if (d > 0 && d < 90) n.mass = Math.min(n.mass + .35 * (1 - d / 90), 1.6);
+      });
+      trail.push({ from: focus, to: next, age: 0 });
+      if (trail.length > 9) trail.shift();
+      focus = next;
+    }
+
+    let tick = 0;
+    function frame() {
+      const w = canvas.clientWidth, h = 460;
+      ctx.clearRect(0, 0, w, h);
+
+      // faint concentric guides — the instrument face
+      ctx.strokeStyle = 'rgba(99,230,255,.05)';
+      for (let r = 70; r < 320; r += 62) {
+        ctx.beginPath(); ctx.ellipse(w / 2, h / 2 + 10, r, r * .82, 0, 0, Math.PI * 2); ctx.stroke();
+      }
+
+      // trace: fading path of recent attention
+      trail.forEach(t => {
+        if (!t.from) return;
+        const alpha = Math.max(0, .5 - t.age * .06);
+        ctx.strokeStyle = `rgba(255,180,84,${alpha})`;
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(t.from.x, t.from.y); ctx.lineTo(t.to.x, t.to.y); ctx.stroke();
+        t.age++;
+      });
+
+      // nodes: radius + glow by mass
+      nodes.forEach(n => {
+        n.mass *= .988;                       // exponential decay
+        const m = n.mass, r = 1.4 + m * 5;
+        if (m > .04) {
+          const grad = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, r * 6);
+          grad.addColorStop(0, `rgba(99,230,255,${Math.min(.5, m * .4)})`);
+          grad.addColorStop(1, 'rgba(99,230,255,0)');
+          ctx.fillStyle = grad;
+          ctx.beginPath(); ctx.arc(n.x, n.y, r * 6, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.fillStyle = m > .04 ? `rgba(215,226,244,${.35 + Math.min(.65, m * .5)})` : 'rgba(95,108,138,.5)';
+        ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, Math.PI * 2); ctx.fill();
+      });
+
+      // focus ring
+      if (focus) {
+        ctx.strokeStyle = 'rgba(255,107,74,.8)';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath(); ctx.arc(focus.x, focus.y, 11 + Math.sin(tick / 8) * 2, 0, Math.PI * 2); ctx.stroke();
+      }
+
+      if (++tick % 42 === 0) step();
+      if (tick % 1400 === 0) {               // new prompt → field resets
+        nodes.forEach(n => n.mass *= .1);
+        trail = [];
+        invEl.textContent = investigations[Math.floor(Math.random() * investigations.length)];
+      }
+      requestAnimationFrame(frame);
+    }
+
+    layout();
+    window.addEventListener('resize', layout);
+    requestAnimationFrame(frame);
+  })();
+  </script>
+</body>
+</html>

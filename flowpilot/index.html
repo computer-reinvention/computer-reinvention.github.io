@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="flowpilot — self-hosted, API-first browser automation. An AI agent explores a site once, compiles cached JavaScript reflexes, then replays them with zero LLM calls. Human-in-the-loop as a programmable primitive.">
+<title>flowpilot — explore once, replay forever</title>
+<style>
+  :root{
+    --bg:#0b1220;
+    --bg-2:#0e1626;
+    --panel:#111c30;
+    --panel-2:#0d1729;
+    --line:#1e2c46;
+    --line-2:#27385a;
+    --ink:#dbe4f3;
+    --ink-dim:#8fa0bc;
+    --ink-faint:#5c6d8c;
+    --green:#3ee08a;
+    --green-dim:rgba(62,224,138,.14);
+    --amber:#f5b84a;
+    --amber-dim:rgba(245,184,74,.14);
+    --red:#f4685f;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--bg);color:var(--ink);font-family:var(--sans);
+    line-height:1.6;-webkit-font-smoothing:antialiased;
+    background-image:
+      radial-gradient(1200px 600px at 70% -10%, rgba(62,224,138,.05), transparent 60%),
+      radial-gradient(900px 500px at 10% 110%, rgba(245,184,74,.04), transparent 60%);
+  }
+  a{color:var(--green);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .wrap{max-width:980px;margin:0 auto;padding:0 24px}
+  .microlabel{
+    font-family:var(--mono);font-size:11px;letter-spacing:.22em;
+    text-transform:uppercase;color:var(--ink-faint);
+  }
+  .microlabel .tick{color:var(--green)}
+
+  /* breadcrumb */
+  header.crumb{
+    border-bottom:1px solid var(--line);
+    padding:14px 0;
+  }
+  header.crumb .wrap{display:flex;align-items:center;gap:8px}
+  header.crumb a,header.crumb span{
+    font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;
+  }
+  header.crumb a{color:var(--ink-dim)}
+  header.crumb a:hover{color:var(--green);text-decoration:none}
+  header.crumb .sep{color:var(--ink-faint)}
+  header.crumb .here{color:var(--green)}
+
+  /* hero */
+  .hero{padding:72px 0 40px}
+  .hero h1{
+    font-size:clamp(40px,7vw,64px);letter-spacing:-.02em;line-height:1.05;
+    font-weight:700;
+  }
+  .hero h1 .dot{color:var(--green)}
+  .tagline{
+    margin-top:18px;font-family:var(--mono);font-size:clamp(14px,2.4vw,17px);
+    color:var(--amber);letter-spacing:.02em;
+  }
+  .sub{
+    margin-top:18px;max-width:640px;color:var(--ink-dim);font-size:16px;
+  }
+  .cta{margin-top:30px;display:flex;gap:12px;flex-wrap:wrap}
+  .btn{
+    display:inline-block;padding:11px 22px;border-radius:6px;
+    font-family:var(--mono);font-size:13px;letter-spacing:.08em;text-transform:uppercase;
+    border:1px solid var(--line-2);color:var(--ink);transition:all .18s ease;
+  }
+  .btn:hover{text-decoration:none;transform:translateY(-1px)}
+  .btn.primary{
+    background:var(--green-dim);border-color:rgba(62,224,138,.5);color:var(--green);
+  }
+  .btn.primary:hover{background:rgba(62,224,138,.22);box-shadow:0 0 24px rgba(62,224,138,.15)}
+  .btn.ghost:hover{border-color:var(--ink-faint)}
+  .status-pill{
+    display:inline-flex;align-items:center;gap:8px;margin-bottom:22px;
+    border:1px solid var(--line-2);border-radius:999px;padding:5px 14px;
+    font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-dim);
+  }
+  .status-pill .blip{
+    width:7px;height:7px;border-radius:50%;background:var(--amber);
+    box-shadow:0 0 8px var(--amber);animation:blip 1.6s ease-in-out infinite;
+  }
+  @keyframes blip{0%,100%{opacity:1}50%{opacity:.35}}
+
+  /* hero animation */
+  .deck{
+    margin:48px 0 0;border:1px solid var(--line-2);border-radius:10px;overflow:hidden;
+    background:var(--panel-2);box-shadow:0 20px 60px rgba(0,0,0,.35);
+  }
+  .deck-bar{
+    display:flex;align-items:center;gap:10px;padding:10px 14px;
+    border-bottom:1px solid var(--line);background:var(--panel);
+  }
+  .deck-bar .dots{display:flex;gap:6px}
+  .deck-bar .dots i{width:9px;height:9px;border-radius:50%;background:var(--line-2);display:block}
+  .deck-bar .addr{
+    flex:1;font-family:var(--mono);font-size:11px;color:var(--ink-faint);
+    letter-spacing:.06em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .deck-bar .mode{
+    font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;
+    padding:3px 10px;border-radius:4px;border:1px solid var(--line-2);white-space:nowrap;
+    transition:all .3s ease;
+  }
+  .deck-bar .mode.explore{color:var(--amber);border-color:rgba(245,184,74,.45);background:var(--amber-dim)}
+  .deck-bar .mode.replay{color:var(--green);border-color:rgba(62,224,138,.45);background:var(--green-dim)}
+  .deck-bar .mode.human{color:var(--red);border-color:rgba(244,104,95,.45);background:rgba(244,104,95,.12)}
+  #hud{display:block;width:100%;height:340px}
+
+  /* sections */
+  section{padding:72px 0 8px}
+  .sec-head{margin-bottom:34px}
+  .sec-head h2{font-size:clamp(24px,4vw,32px);letter-spacing:-.01em;margin-top:10px}
+  .sec-head p{color:var(--ink-dim);max-width:640px;margin-top:10px}
+
+  .tiers{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .tier{
+    background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    padding:24px 20px;position:relative;transition:border-color .2s ease;
+  }
+  .tier:hover{border-color:var(--line-2)}
+  .tier .num{
+    font-family:var(--mono);font-size:11px;letter-spacing:.2em;
+    display:inline-block;padding:3px 10px;border-radius:4px;margin-bottom:16px;
+  }
+  .tier.t1 .num{color:var(--green);background:var(--green-dim)}
+  .tier.t2 .num{color:var(--amber);background:var(--amber-dim)}
+  .tier.t3 .num{color:var(--red);background:rgba(244,104,95,.12)}
+  .tier h3{font-size:17px;margin-bottom:10px}
+  .tier p{font-size:14px;color:var(--ink-dim)}
+  .tier .lat{
+    margin-top:16px;padding-top:14px;border-top:1px dashed var(--line);
+    font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint);
+  }
+  .fail-note{
+    margin-top:22px;font-family:var(--mono);font-size:13px;color:var(--ink-dim);
+    border-left:2px solid var(--green);padding-left:16px;
+  }
+  .fail-note b{color:var(--green);font-weight:600}
+
+  /* HITL */
+  .hitl{display:grid;grid-template-columns:1fr 1fr;gap:28px;align-items:start}
+  .hitl .prose p{color:var(--ink-dim);font-size:15px;margin-bottom:14px}
+  .hitl .prose strong{color:var(--ink)}
+  .hitl ul{list-style:none;margin-top:6px}
+  .hitl li{
+    padding:8px 0 8px 22px;position:relative;font-size:14px;color:var(--ink-dim);
+  }
+  .hitl li::before{
+    content:"▸";position:absolute;left:0;color:var(--green);font-family:var(--mono);
+  }
+  pre.payload{
+    background:#0a101d;border:1px solid var(--line-2);border-radius:10px;
+    padding:20px;font-family:var(--mono);font-size:12.5px;line-height:1.7;
+    overflow-x:auto;color:var(--ink-dim);
+  }
+  pre.payload .k{color:var(--amber)}
+  pre.payload .s{color:var(--green)}
+  pre.payload .cap{
+    display:block;margin-bottom:12px;font-size:10px;letter-spacing:.22em;
+    text-transform:uppercase;color:var(--ink-faint);
+  }
+
+  /* api facts */
+  .facts{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+  .fact{
+    border:1px solid var(--line);border-radius:10px;padding:20px;background:var(--panel);
+  }
+  .fact h3{font-size:15px;margin-bottom:8px}
+  .fact h3::before{content:"◈ ";color:var(--green)}
+  .fact p{font-size:14px;color:var(--ink-dim)}
+
+  footer{
+    margin-top:90px;border-top:1px solid var(--line);padding:28px 0 44px;
+  }
+  footer .wrap{
+    display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;
+  }
+  footer p,footer a{font-family:var(--mono);font-size:12px;letter-spacing:.1em;color:var(--ink-faint)}
+  footer nav{display:flex;gap:22px}
+  footer a:hover{color:var(--green);text-decoration:none}
+
+  @media (max-width:760px){
+    .tiers{grid-template-columns:1fr}
+    .hitl{grid-template-columns:1fr}
+    .facts{grid-template-columns:1fr}
+    #hud{height:280px}
+    .hero{padding:52px 0 32px}
+  }
+  @media (max-width:420px){
+    .wrap{padding:0 16px}
+    .deck-bar .addr{display:none}
+  }
+</style>
+</head>
+<body>
+
+<header class="crumb">
+  <div class="wrap">
+    <a href="../">computer reinvention</a>
+    <span class="sep">/</span>
+    <span class="here">03 — flowpilot</span>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+    <div class="hero">
+      <div class="status-pill"><span class="blip"></span>early · in active development</div>
+      <h1>flowpilot<span class="dot">_</span></h1>
+      <p class="tagline">Explore once. Replay forever. Humans in the loop — programmatically.</p>
+      <p class="sub">
+        Self-hosted, API-first browser automation. An AI agent explores a website once and compiles
+        small cached JavaScript "reflexes" per stage. Warm runs replay those reflexes with zero LLM
+        calls — roughly 10× faster than agent-driven runs — and when something breaks, it degrades
+        gracefully instead of falling over.
+      </p>
+      <div class="cta">
+        <a class="btn primary" href="https://github.com/computer-reinvention/flowpilot">source ↗</a>
+        <a class="btn ghost" href="../">back to index</a>
+      </div>
+    </div>
+
+    <div class="deck" aria-hidden="true">
+      <div class="deck-bar">
+        <div class="dots"><i></i><i></i><i></i></div>
+        <div class="addr">wss://flowpilot.local/runs/42/browser</div>
+        <div class="mode explore" id="modeBadge">EXPLORE · LLM</div>
+      </div>
+      <canvas id="hud"></canvas>
+    </div>
+
+    <section id="fallback">
+      <div class="sec-head">
+        <span class="microlabel"><span class="tick">01</span> · degradation ladder</span>
+        <h2>Three tiers. Zero stack traces.</h2>
+        <p>Selectors drift. Layouts change. Flowpilot treats failure as a routing decision, not an
+        exception — every miss falls through to a smarter (slower) tier, then repairs itself.</p>
+      </div>
+      <div class="tiers">
+        <div class="tier t1">
+          <span class="num">TIER 1</span>
+          <h3>Cached reflex</h3>
+          <p>The compiled JavaScript reflex for this stage replays directly against the page.
+          On a soft failure it attempts auto-repair in place before escalating.</p>
+          <div class="lat">≈ ms · 0 llm calls</div>
+        </div>
+        <div class="tier t2">
+          <span class="num">TIER 2</span>
+          <h3>LLM regeneration</h3>
+          <p>The LLM takes a live DOM snapshot and regenerates a fresh script for the stage —
+          targeted, single-shot, and cached back on success.</p>
+          <div class="lat">≈ sec · 1 llm call</div>
+        </div>
+        <div class="tier t3">
+          <span class="num">TIER 3</span>
+          <h3>Full agent</h3>
+          <p>Last resort: the full agent takes over the browser, works the problem end to end,
+          and saves new reflexes so next time it never gets this far.</p>
+          <div class="lat">≈ min · agent loop</div>
+        </div>
+      </div>
+      <p class="fail-note">It fails toward <b>intelligence</b>, not toward a stack trace.</p>
+    </section>
+
+    <section id="hitl">
+      <div class="sec-head">
+        <span class="microlabel"><span class="tick">02</span> · human-in-the-loop</span>
+        <h2>HITL as an API primitive</h2>
+        <p>Auth walls and CAPTCHAs aren't crashes — they're pauses with a handoff protocol.</p>
+      </div>
+      <div class="hitl">
+        <div class="prose">
+          <p>When a run hits an auth wall or CAPTCHA it <strong>pauses</strong> and fires an
+          HMAC-signed webhook containing a <strong>live browser URL</strong> and a
+          <strong>resume endpoint</strong>. Whoever receives it can take over the actual browser
+          session — not a screenshot, the real thing — clear the obstacle, then hit resume.
+          Cookies are captured and the run continues where it left off.</p>
+          <p>"Whoever" is deliberately open-ended:</p>
+          <ul>
+            <li>a human clicking through from a Slack bot message</li>
+            <li>an on-call rotation via your paging system</li>
+            <li>an external CAPTCHA-solving service, fully automated</li>
+            <li>any system that can open a URL and POST to another</li>
+          </ul>
+        </div>
+        <pre class="payload"><span class="cap">webhook · run.paused</span>{
+  <span class="k">"event"</span>:       <span class="s">"run.paused"</span>,
+  <span class="k">"run_id"</span>:      <span class="s">"42"</span>,
+  <span class="k">"reason"</span>:      <span class="s">"auth_required"</span>,
+  <span class="k">"stage"</span>:       <span class="s">"checkout/login"</span>,
+  <span class="k">"browser_url"</span>: <span class="s">"wss://flowpilot.local/runs/42/browser"</span>,
+  <span class="k">"resume_url"</span>:  <span class="s">"https://flowpilot.local/api/runs/42/resume"</span>,
+  <span class="k">"expires_at"</span>:  <span class="s">"2026-07-19T14:32:00Z"</span>
+}</pre>
+      </div>
+    </section>
+
+    <section id="api">
+      <div class="sec-head">
+        <span class="microlabel"><span class="tick">03</span> · flight systems</span>
+        <h2>API-first, self-hosted, sandboxed</h2>
+      </div>
+      <div class="facts">
+        <div class="fact">
+          <h3>REST + webhooks</h3>
+          <p>Every capability is an endpoint. Webhooks are HMAC-signed so downstream systems can
+          verify provenance before acting on a pause or completion event.</p>
+        </div>
+        <div class="fact">
+          <h3>Trigger hooks</h3>
+          <p>Kick off runs from Slack, Zapier, or plain cron. Flowpilot is designed to sit inside
+          your existing plumbing, not replace it.</p>
+        </div>
+        <div class="fact">
+          <h3>Isolated sandboxes</h3>
+          <p>Each run executes in its own Docker sandbox — clean state, contained blast radius,
+          reproducible environment per execution.</p>
+        </div>
+        <div class="fact">
+          <h3>Self-hosted</h3>
+          <p>Your infrastructure, your credentials, your data. Nothing about your sessions or
+          cached reflexes leaves your machines.</p>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>© 2026 computer reinvention</p>
+    <nav>
+      <a href="../">index</a>
+      <a href="https://github.com/computer-reinvention/flowpilot">github ↗</a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+(function(){
+  "use strict";
+  var canvas = document.getElementById("hud");
+  var badge = document.getElementById("modeBadge");
+  var ctx = canvas.getContext("2d");
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  var W = 0, H = 0;
+
+  function resize(){
+    var r = canvas.getBoundingClientRect();
+    W = r.width; H = r.height;
+    canvas.width = Math.round(W * dpr);
+    canvas.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  resize();
+  window.addEventListener("resize", resize);
+
+  // Waypoints in normalized coords — a wandering "exploration" path.
+  var WP = [
+    [0.08,0.78],[0.16,0.42],[0.27,0.62],[0.33,0.25],[0.45,0.48],
+    [0.52,0.20],[0.60,0.58],[0.70,0.32],[0.79,0.66],[0.90,0.40]
+  ];
+
+  function pt(i){ return { x: WP[i][0]*W, y: WP[i][1]*H }; }
+
+  // Precompute segment lengths for arc-length parameterization.
+  function segLens(){
+    var lens = [], total = 0;
+    for (var i = 0; i < WP.length - 1; i++){
+      var a = pt(i), b = pt(i+1);
+      var l = Math.hypot(b.x-a.x, b.y-a.y);
+      lens.push(l); total += l;
+    }
+    return { lens: lens, total: total };
+  }
+
+  // Position along path at t in [0,1].
+  function posAt(t){
+    var s = segLens();
+    var d = t * s.total, acc = 0;
+    for (var i = 0; i < s.lens.length; i++){
+      if (acc + s.lens[i] >= d){
+        var f = (d - acc) / s.lens[i];
+        var a = pt(i), b = pt(i+1);
+        return { x: a.x + (b.x-a.x)*f, y: a.y + (b.y-a.y)*f, seg: i };
+      }
+      acc += s.lens[i];
+    }
+    var last = pt(WP.length-1);
+    return { x: last.x, y: last.y, seg: WP.length-2 };
+  }
+
+  function drawPathTo(t, dashed, color, alpha){
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.5;
+    ctx.lineJoin = "round";
+    if (dashed) ctx.setLineDash([5,6]);
+    ctx.beginPath();
+    var p0 = pt(0);
+    ctx.moveTo(p0.x, p0.y);
+    var end = posAt(t);
+    for (var i = 1; i <= end.seg; i++){
+      var p = pt(i);
+      ctx.lineTo(p.x, p.y);
+    }
+    ctx.lineTo(end.x, end.y);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawNodes(upTo){
+    for (var i = 0; i < WP.length; i++){
+      var p = pt(i);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 3, 0, Math.PI*2);
+      ctx.fillStyle = i <= upTo ? "rgba(62,224,138,.9)" : "rgba(92,109,140,.4)";
+      ctx.fill();
+    }
+  }
+
+  function drawCursor(x, y, color){
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(x, y, 7, 0, Math.PI*2); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x-11, y); ctx.lineTo(x-4, y);
+    ctx.moveTo(x+4, y);  ctx.lineTo(x+11, y);
+    ctx.moveTo(x, y-11); ctx.lineTo(x, y-4);
+    ctx.moveTo(x, y+4);  ctx.lineTo(x, y+11);
+    ctx.stroke();
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.arc(x, y, 2, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+
+  function drawGrid(){
+    ctx.strokeStyle = "rgba(30,44,70,.5)";
+    ctx.lineWidth = 1;
+    var step = 40;
+    ctx.beginPath();
+    for (var x = step; x < W; x += step){ ctx.moveTo(x,0); ctx.lineTo(x,H); }
+    for (var y = step; y < H; y += step){ ctx.moveTo(0,y); ctx.lineTo(W,y); }
+    ctx.stroke();
+  }
+
+  function label(text, x, y, color){
+    ctx.save();
+    ctx.font = "10px ui-monospace, Menlo, monospace";
+    ctx.fillStyle = color;
+    ctx.textAlign = "center";
+    ctx.fillText(text, x, y);
+    ctx.restore();
+  }
+
+  function setBadge(cls, text){
+    if (badge.textContent !== text){
+      badge.textContent = text;
+      badge.className = "mode " + cls;
+    }
+  }
+
+  // State machine: explore (slow) -> replay xN (fast), one replay hits a HUMAN pause.
+  var phase = "explore";      // explore | replay | pause
+  var t = 0;                  // progress along path 0..1
+  var replayCount = 0;
+  var replayTotal = 5;
+  var pauseTimer = 0;
+  var pauseAt = 0.55;         // where the HITL pause happens
+  var pauseReplayIdx = 2;     // which replay pass triggers the pause
+  var last = performance.now();
+
+  var EXPLORE_SPEED = 0.06;   // fraction of path per second
+  var REPLAY_SPEED  = 0.62;
+  var PAUSE_DUR = 1.6;        // seconds
+
+  function frame(now){
+    var dt = Math.min((now - last) / 1000, 0.05);
+    last = now;
+
+    ctx.clearRect(0, 0, W, H);
+    drawGrid();
+
+    if (phase === "explore"){
+      setBadge("explore", "EXPLORE · LLM");
+      t += EXPLORE_SPEED * dt;
+      // Slight hesitation near nodes to feel "thinking".
+      var wob = Math.sin(now / 180) * 0.008;
+      var tc = Math.max(0, Math.min(1, t + wob));
+      drawPathTo(tc, true, "rgba(245,184,74,.85)", 0.9);
+      var p = posAt(tc);
+      drawNodes(p.seg);
+      drawCursor(p.x, p.y, "rgba(245,184,74,.95)");
+      label("EXPLORE · LLM", p.x, p.y - 18, "rgba(245,184,74,.9)");
+      if (t >= 1){ phase = "replay"; t = 0; replayCount = 0; }
+    }
+    else if (phase === "replay" || phase === "pause"){
+      // Recorded path always visible, solid + dim.
+      drawPathTo(1, false, "rgba(62,224,138,.5)", 0.6);
+      drawNodes(WP.length - 1);
+
+      if (phase === "pause"){
+        setBadge("human", "PAUSED · HUMAN");
+        pauseTimer += dt;
+        var pp = posAt(pauseAt);
+        // Red flash ring
+        var pulse = 0.5 + 0.5 * Math.sin(now / 120);
+        ctx.save();
+        ctx.strokeStyle = "rgba(244,104,95," + (0.4 + 0.5*pulse) + ")";
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(pp.x, pp.y, 12 + pulse*4, 0, Math.PI*2); ctx.stroke();
+        ctx.restore();
+        drawCursor(pp.x, pp.y, "rgba(244,104,95,.95)");
+        // HUMAN badge
+        ctx.save();
+        ctx.font = "10px ui-monospace, Menlo, monospace";
+        var txt = "HUMAN";
+        var tw = ctx.measureText(txt).width;
+        var bx = pp.x - tw/2 - 7, by = pp.y - 38;
+        ctx.fillStyle = "rgba(244,104,95,.15)";
+        ctx.strokeStyle = "rgba(244,104,95,.7)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        if (ctx.roundRect) { ctx.roundRect(bx, by, tw + 14, 18, 4); }
+        else { ctx.rect(bx, by, tw + 14, 18); }
+        ctx.fill(); ctx.stroke();
+        ctx.fillStyle = "rgba(244,104,95,.95)";
+        ctx.textAlign = "center";
+        ctx.fillText(txt, pp.x, by + 13);
+        ctx.restore();
+        if (pauseTimer >= PAUSE_DUR){ phase = "replay"; }
+      } else {
+        setBadge("replay", "REPLAY · 0 LLM CALLS");
+        t += REPLAY_SPEED * dt;
+        if (replayCount === pauseReplayIdx && pauseTimer === 0 && t >= pauseAt){
+          t = pauseAt; phase = "pause";
+        }
+        if (t >= 1){
+          t = 0;
+          replayCount++;
+          if (replayCount > pauseReplayIdx) pauseTimer = 1e9; // pause already consumed this cycle
+          if (replayCount >= replayTotal){
+            phase = "explore"; t = 0; pauseTimer = 0;
+          }
+        }
+      }
+
+      if (phase === "replay"){
+        var rp = posAt(t);
+        // Bright sweep on the traveled portion.
+        drawPathTo(t, false, "rgba(62,224,138,.95)", 0.95);
+        drawCursor(rp.x, rp.y, "rgba(62,224,138,1)");
+        label("REPLAY · 0 LLM CALLS", rp.x, rp.y - 18, "rgba(62,224,138,.9)");
+        // Trailing glow dots
+        for (var g = 1; g <= 3; g++){
+          var gt = Math.max(0, t - g * 0.03);
+          var gp = posAt(gt);
+          ctx.beginPath();
+          ctx.arc(gp.x, gp.y, 4 - g, 0, Math.PI*2);
+          ctx.fillStyle = "rgba(62,224,138," + (0.35 - g*0.09) + ")";
+          ctx.fill();
+        }
+      }
+    }
+
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
