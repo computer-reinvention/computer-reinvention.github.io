@@ -115,6 +115,22 @@
     .dial h3::before { content: '◉ '; color: var(--amber); font-size: 11px; vertical-align: 2px; }
     .dial p { margin: 0; font-size: 14px; color: var(--mute); }
 
+    /* ── instrument log plates ── */
+    .plate { margin: 30px 0 0; }
+    .plate a { display: block; }
+    .plate img {
+      display: block; width: 100%; height: auto;
+      border: 1px solid var(--line); border-radius: 12px;
+      box-shadow: 0 30px 60px -25px rgba(0,0,0,.8);
+      transition: border-color .2s ease;
+    }
+    .plate a:hover img { border-color: var(--cyan); }
+    .plate figcaption {
+      margin-top: 10px;
+      font-family: var(--mono); font-size: 11px;
+      letter-spacing: .08em; color: var(--mute);
+    }
+
     .footnote {
       margin-top: 110px; padding: 26px 0 48px;
       border-top: 1px solid var(--line);
@@ -177,6 +193,36 @@
           prose. You read what a change <em>means</em>, not a raw diff.</p>
         </div>
       </div>
+    </section>
+
+    <section>
+      <h2>from the instrument log</h2>
+      <p class="dim">
+        Real frames from real sessions — trie's own codebase (1,912 symbols,
+        100 files), with the embedded agent answering questions about the
+        system it's standing in.
+      </p>
+      <figure class="plate">
+        <a href="assets/agm-attention-map.jpg"><img src="assets/agm-attention-map.jpg"
+          alt="AGM attention map lit up during an agent session, with a symbol tooltip reading 'read by the agent' and the agent explaining trie's architecture in the chat panel"
+          loading="lazy" /></a>
+        <figcaption>attention tab — mid-investigation. the map lights up around
+        the agent's focus; hovering a symbol shows its prose and live/historic mass.</figcaption>
+      </figure>
+      <figure class="plate">
+        <a href="assets/agm-session.jpg"><img src="assets/agm-session.jpg"
+          alt="AGM wider view of the attention map with role regions labeled — orchestration, config-management — while a sub-agent runs a 41-step task"
+          loading="lazy" /></a>
+        <figcaption>role regions hold a fixed geography — orchestration,
+        config-management, storage — while a 41-step sub-agent works.</figcaption>
+      </figure>
+      <figure class="plate">
+        <a href="assets/agm-quiet.jpg"><img src="assets/agm-quiet.jpg"
+          alt="AGM in its quiet state showing the project file tree and the message 'No attention yet — the map fills in as the agent works'"
+          loading="lazy" /></a>
+        <figcaption>the quiet state. "no attention yet — the map fills in as
+        the agent works."</figcaption>
+      </figure>
     </section>
 
     <section>
