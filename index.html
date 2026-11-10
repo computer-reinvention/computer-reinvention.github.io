@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>computer reinvention · developer tools for agent-driven programming</title>
   <meta name="description"
-        content="computer reinvention builds developer tools for agent-driven programming: context infrastructure, autonomy loops, and orchestration. Home of trie." />
+        content="computer reinvention builds developer tools for agent-driven programming: context infrastructure, autonomy loops, and orchestration. Home of MAGI." />
   <style>
     :root {
       --bg: #ffffff;
@@ -127,6 +127,7 @@
 
     .project--flagship { background: var(--bg-alt); margin: 0 -20px; padding: 24px 20px; border-radius: 8px; border: 1px solid var(--panel-edge); }
     .project--flagship + .project { border-top: none; }
+    .section__label--sub { margin-top: 40px; }
 
     @media (max-width: 680px) {
       .project { grid-template-columns: 1fr; gap: 10px; }
@@ -177,11 +178,35 @@
     <div class="container">
       <p class="section__label">projects</p>
 
-      <!-- trie (flagship) -->
+      <!-- magi (flagship) -->
       <article class="project project--flagship">
         <div class="project__id">
-          <span class="project__name">trie</span>
+          <span class="project__name">magi</span>
           <span class="project__status project__status--active">active</span>
+        </div>
+        <div class="project__body">
+          <p>
+            <strong>An agent-first Linux desktop.</strong>
+            A Fedora and Hyprland distribution where the default interface is
+            an orchestrator agent: speak or type a request, and it runs other
+            agents in tmux, checks their work and asks only for decisions.
+            Speech recognition and voice are local.
+          </p>
+          <div class="project__links">
+            <a href="https://github.com/pankajgarkoti/magi">github</a>
+            <span>·</span>
+            <a href="https://github.com/pankajgarkoti/bridge">orchestrator</a>
+          </div>
+        </div>
+      </article>
+
+      <p class="section__label section__label--sub">closed experiments</p>
+
+      <!-- trie -->
+      <article class="project">
+        <div class="project__id">
+          <span class="project__name">trie</span>
+          <span class="project__status">closed</span>
         </div>
         <div class="project__body">
           <p>
@@ -204,7 +229,7 @@
       <article class="project">
         <div class="project__id">
           <span class="project__name">trie-app</span>
-          <span class="project__status project__status--exp">experimental</span>
+          <span class="project__status">closed</span>
         </div>
         <div class="project__body">
           <p>
@@ -223,7 +248,7 @@
       <article class="project">
         <div class="project__id">
           <span class="project__name">flowpilot</span>
-          <span class="project__status project__status--active">active</span>
+          <span class="project__status">closed</span>
         </div>
         <div class="project__body">
           <p>
@@ -243,7 +268,7 @@
       <article class="project">
         <div class="project__id">
           <span class="project__name">soren</span>
-          <span class="project__status project__status--exp">research</span>
+          <span class="project__status">closed</span>
         </div>
         <div class="project__body">
           <p>
@@ -263,7 +288,7 @@
       <article class="project">
         <div class="project__id">
           <span class="project__name">multiclaude</span>
-          <span class="project__status">archived</span>
+          <span class="project__status">closed</span>
         </div>
         <div class="project__body">
           <p>
@@ -283,7 +308,7 @@
       <article class="project">
         <div class="project__id">
           <span class="project__name">chainfactory</span>
-          <span class="project__status">archived</span>
+          <span class="project__status">closed</span>
         </div>
         <div class="project__body">
           <p>
